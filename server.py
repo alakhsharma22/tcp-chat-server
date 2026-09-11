@@ -1,6 +1,10 @@
+"""
+handles application level behavior now
+"""
+
 import socket
 import selectors
-from dataclasses import dataclass, field
+from connections import ClientState, queue_msg, close_connection, read_from_clients, write_to_client
 
 host, port = "localhost", 9999
 
@@ -9,28 +13,10 @@ selector = selectors.DefaultSelector()
 clients = {} # client_socket -> client (ClientState obj)
 history = []
 
-"""
-Create a dataclass instead of client_sockets set as we might need to store other state conditions
-of a client such as user_name, input_buff, output_buff, etc.
-"""
-@dataclass
-class ClientState:
-    sock: socket.socket
-    address: tuple
-    client_id: str
-
-    send_buffer: bytearray = field(default_factory=bytearray)
-
-def queue_msg(client, msg):
-    was_empty = not client.send_buffer
-    client.send_buffer.extend(msg.encode('utf-8'))
-
-    if was_empty:
-        selector.modify(client.sock, selectors.EVENT_READ | selectors.EVENT_WRITE, data=client)
 
 def broadcast(msg):
     for client in list(clients.values()):
-        queue_msg(client, msg)
+        queue_msg(selector, client, msg)
 
 def accept_connections(server_socket):
     while True:
@@ -51,85 +37,40 @@ def accept_connections(server_socket):
 
         if history:
             history_payload = ("Chat History\n" + "\n".join(history) + "\n----")
-            queue_msg(client, history_payload)
+            queue_msg(selector, client, history_payload)
 
             broadcast(f"{client_id} joined the chat")
 
 def disconnect_client(client):
-    sock = client.sock
-    clients.pop(sock, None)
+    clients.pop(client.sock, None)
 
-    try:
-        selector.unregister(sock)
-    except Exception:
-        pass
-
-    try:
-        sock.close()
-    except Exception:
-        pass
+    close_connection(selector, client)
 
     print(f"{client.client_id} disconnected")
     broadcast(f"{client.client_id} left the chat")
 
-def read_from_clients(client):
-    try:
-        data = client.sock.recv(4096)
-    except BlockingIOError:
-        return True
-
-    except (ConnectionRefusedError, OSError):
-        disconnect_client(client)
-        return False
-
-    if not data:
-        disconnect_client(client)
-        return False
-
-    try:
-        text = data.decode('utf-8')
-    except UnicodeDecodeError:
-        disconnect_client(client)
-        return False
-
-    if not text:
-        return True
-
-    formatted_msg = f"[{client.client_id}] : {text}\n"
-    history.append(formatted_msg)
-    broadcast(formatted_msg)
-
-    return True
-
-def write_to_client(client):
-    if not client.send_buffer:
-        return
-
-    try:
-        sent = client.sock.send(client.send_buffer)
-    except BlockingIOError:
-        return
-
-    except (BrokenPipeError, ConnectionRefusedError, OSError):
-        disconnect_client(client)
-        return
-
-    del client.send_buffer[:sent] # remove the sent bytes from buffer, so next time remaining are sent
-
-    if not client.send_buffer: # stop listening until we have something to send, as all sent now
-        selector.modify(client.sock, selectors.EVENT_READ, data=client)
 
 def service_client(key, mask): # mini dispatcher
     client = key.data
 
     if mask & selectors.EVENT_READ:
-        still_connected = read_from_clients(client)
+        still_connected, text = read_from_clients(client)
 
         if not still_connected:
+            disconnect_client(client)
             return
 
+        if text is not None:
+            formatted_msg = f"[{client.client_id}] : {text}\n"
+            history.append(formatted_msg)
+            broadcast(formatted_msg)
+
     if mask & selectors.EVENT_WRITE:
-        write_to_client(client)
+        still_connected = write_to_client(selector, client)
+
+        if not still_connected:
+            disconnect_client(client)
+            return
 
 def run_server():
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
