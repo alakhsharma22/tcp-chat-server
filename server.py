@@ -5,6 +5,7 @@ handles application level behavior now
 import socket
 import selectors
 from connections import ClientState, queue_msg, close_connection, read_from_clients, write_to_client
+from protocol import Message, MessageType, ProtocolError, extract_msgs, encode_msg
 
 host, port = "localhost", 9999
 
@@ -14,9 +15,11 @@ clients = {} # client_socket -> client (ClientState obj)
 history = []
 
 
-def broadcast(msg):
+def broadcast(msg: Message):
+    data = encode_msg(msg)
+
     for client in list(clients.values()):
-        queue_msg(selector, client, msg)
+        queue_msg(selector, client, data)
 
 def accept_connections(server_socket):
     while True:
@@ -37,9 +40,11 @@ def accept_connections(server_socket):
 
         if history:
             history_payload = ("Chat History\n" + "\n".join(history) + "\n----")
-            queue_msg(selector, client, history_payload)
+            history_msg = Message(MessageType.SYSTEM, {"text": history_payload})
+            queue_msg(selector, client, encode_msg(history_msg))
 
-            broadcast(f"{client_id} joined the chat")
+            out = Message(MessageType.SYSTEM, {"text" : f"{client_id} joined the chat"})
+            broadcast(out)
 
 def disconnect_client(client):
     clients.pop(client.sock, None)
@@ -47,23 +52,39 @@ def disconnect_client(client):
     close_connection(selector, client)
 
     print(f"{client.client_id} disconnected")
-    broadcast(f"{client.client_id} left the chat")
+    out = Message(MessageType.SYSTEM, {"text":f"{client.client_id} left the chat"})
+    broadcast(out)
+
+def handle_msg(client, msg):
+    if msg.type == MessageType.CHAT:
+        text = msg.data["text"]
+
+        history.append(f"[{client.client_id}] : {text}\n")
+        outgoing = Message(MessageType.CHAT, {"sender": client.client_id, "text":text})
+        broadcast(outgoing)
 
 
 def service_client(key, mask): # mini dispatcher
     client = key.data
 
     if mask & selectors.EVENT_READ:
-        still_connected, text = read_from_clients(client)
+        still_connected, data = read_from_clients(client)
 
         if not still_connected:
             disconnect_client(client)
             return
 
-        if text is not None:
-            formatted_msg = f"[{client.client_id}] : {text}\n"
-            history.append(formatted_msg)
-            broadcast(formatted_msg)
+        if data is not None:
+            client.recv_buffer.extend(data)
+
+            try:
+                msgs = extract_msgs(client.recv_buffer)
+            except ProtocolError:
+                disconnect_client(client)
+                return
+
+            for msg in msgs:
+                handle_msg(client, msg)
 
     if mask & selectors.EVENT_WRITE:
         still_connected = write_to_client(selector, client)

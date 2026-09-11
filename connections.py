@@ -13,10 +13,11 @@ class ClientState:
     client_id: str
 
     send_buffer: bytearray = field(default_factory=bytearray)
+    recv_buffer: bytearray = field(default_factory=bytearray)
 
-def queue_msg(selector, client, msg):
+def queue_msg(selector, client, data: bytes):
     was_empty = not client.send_buffer
-    client.send_buffer.extend(msg.encode('utf-8'))
+    client.send_buffer.extend(data)
 
     if was_empty:
         selector.modify(client.sock, selectors.EVENT_READ | selectors.EVENT_WRITE, data=client)
@@ -34,7 +35,7 @@ def close_connection(selector, client):
         pass
 
 def read_from_clients(client):
-    "Return False if connection is broken, else True and the text read (can be None)"
+    "Return False if connection is broken, else True and the data (bytes) (can be None)"
     try:
         data = client.sock.recv(4096)
     except BlockingIOError:
@@ -46,15 +47,7 @@ def read_from_clients(client):
     if not data:
         return False, None
 
-    try:
-        text = data.decode('utf-8')
-    except UnicodeDecodeError:
-        return False, None
-
-    if not text:
-        return True, None
-
-    return True, text
+    return True, data
 
 def write_to_client(selector, client):
     """Return False if connection is broken, else True"""

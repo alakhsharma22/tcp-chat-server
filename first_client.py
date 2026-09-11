@@ -1,15 +1,51 @@
 import socket
 import sys
 import threading
+from protocol import MessageType, Message, encode_msg, ProtocolError, extract_msgs
 
 host, port = "localhost", 9999
 
-def receive_message(sock):
-    while True:
-        data = sock.recv(1024)
-        text = data.decode('utf-8')
-        sys.stdout.write("\r\033[K" + text + "> ")
+def display_message(message):
+    if message.type == MessageType.CHAT:
+        sender = message.data.get("sender", "Unknown")
+        text = message.data.get("text", "")
+
+        sys.stdout.write(f"\r\033[K[{sender}] : {text}\n> ")
         sys.stdout.flush()
+
+    elif message.type == MessageType.SYSTEM:
+        text = message.data.get("text", "")
+
+        sys.stdout.write(f"\r\033[K[SYSTEM] {text}\n> ")
+        sys.stdout.flush()
+
+    elif message.type == MessageType.ERROR:
+        text = message.data.get("text", "")
+
+        sys.stdout.write(f"\r\033[K[ERROR] {text}\n> ")
+        sys.stdout.flush()
+        
+def receive_message(sock):
+    recv_buff = bytearray() # for current use, later can be added to an object
+
+    while True:
+        try:
+            data = sock.recv(1024)
+            if not data:
+                break
+
+            recv_buff.extend(data)
+            msgs = extract_msgs(recv_buff)
+            for msg in msgs:
+                display_message(msg)
+
+        except ProtocolError as ex:
+            print(f"PE : {ex}")
+            break
+
+        except OSError:
+            break
+
 
 def start_client():
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -30,9 +66,9 @@ def start_client():
             if user_input.lower() == "exit":
                 break
 
-            # sys.stdout.write("\033[1A\033[2K")
-            # sys.stdout.flush()
-            sock.sendall(user_input.encode('utf-8'))
+            outgoing = Message(MessageType.CHAT, {"text": user_input})
+            data = encode_msg(outgoing)
+            sock.sendall(data)
 
         except:
             break
