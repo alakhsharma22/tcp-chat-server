@@ -306,6 +306,15 @@ Introduced framed application protocol
 - Explicit message types
 - Per-connection receive buffering
 - Framed communication in both directions
+
+V2.3
+Added user-defined display names
+- Added per-client name state
+- Added SET_NAME handling
+- Client sends its name after connecting
+- Chat history uses display names
+- Chat messages use display names
+- Disconnect notifications use display names
 ```
 
 ## Current Architecture
