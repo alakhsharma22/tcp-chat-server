@@ -12,6 +12,8 @@ class ClientState:
     address: tuple
     client_id: str
 
+    name: str = ""
+
     send_buffer: bytearray = field(default_factory=bytearray)
     recv_buffer: bytearray = field(default_factory=bytearray)
 

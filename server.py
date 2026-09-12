@@ -51,16 +51,23 @@ def disconnect_client(client):
 
     close_connection(selector, client)
 
-    print(f"{client.client_id} disconnected")
-    out = Message(MessageType.SYSTEM, {"text":f"{client.client_id} left the chat"})
+    name = client.name or client.client_id
+
+    print(f"{name} disconnected")
+    out = Message(MessageType.SYSTEM, {"text":f"{name} left the chat"})
     broadcast(out)
 
 def handle_msg(client, msg):
-    if msg.type == MessageType.CHAT:
+    if msg.type == MessageType.SET_NAME:
+        client.name = msg.data["name"]
+    
+    elif msg.type == MessageType.CHAT:
         text = msg.data["text"]
 
-        history.append(f"[{client.client_id}] : {text}\n")
-        outgoing = Message(MessageType.CHAT, {"sender": client.client_id, "text":text})
+        sender = client.name or client.client_id
+
+        history.append(f"[{sender}] : {text}\n")
+        outgoing = Message(MessageType.CHAT, {"sender": sender, "text":text})
         broadcast(outgoing)
 
 

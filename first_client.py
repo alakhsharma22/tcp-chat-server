@@ -57,6 +57,10 @@ def start_client():
         print("server is offline")
         return
 
+    name = input("Enter user name >")
+    out = Message(MessageType.SET_NAME, {"name" : name})
+    sock.sendall(encode_msg(out))
+
     recv_thread = threading.Thread(target=receive_message, args=(sock,), daemon=True)
     recv_thread.start()
 
