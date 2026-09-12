@@ -196,7 +196,19 @@ Rename Alice
 
 This prevents application commands from being confused with ordinary user messages and provides a cleaner foundation for future features.
 
-`SET_NAME` and `RENAME` are part of the protocol design for upcoming username functionality.
+`SET_NAME` is used when a client first connects to assign a display name to that client's connection state.
+
+For example:
+
+```python
+Message(
+    MessageType.SET_NAME,
+    {
+        "name": "Alice"
+    }
+)
+```
+`RENAME` is reserved for future support for changing a user's name after connecting.
 
 ---
 
@@ -219,6 +231,9 @@ This prevents application commands from being confused with ordinary user messag
 * System messages
 * Client disconnect handling
 * Separate transport, protocol, and application responsibilities
+* User-defined display names
+* Per-client username state
+* Username-aware chat messages and disconnect notifications
 
 ---
 
