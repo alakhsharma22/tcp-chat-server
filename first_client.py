@@ -2,6 +2,7 @@ import socket
 import sys
 import threading
 from protocol import MessageType, Message, encode_msg, ProtocolError, extract_msgs
+import re
 
 host, port = "localhost", 9999
 
@@ -70,7 +71,14 @@ def start_client():
             if user_input.lower() == "exit":
                 break
 
-            outgoing = Message(MessageType.CHAT, {"text": user_input})
+            match = re.match(r"^/rename\s+(.+)$", user_input)
+            if match:
+                new_name = match.group(1).strip()
+                outgoing = Message(MessageType.RENAME, {"name" : new_name})
+
+            else :
+                outgoing = Message(MessageType.CHAT, {"text": user_input})
+
             data = encode_msg(outgoing)
             sock.sendall(data)
 

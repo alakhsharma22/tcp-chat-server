@@ -70,6 +70,15 @@ def handle_msg(client, msg):
         outgoing = Message(MessageType.CHAT, {"sender": sender, "text":text})
         broadcast(outgoing)
 
+    elif msg.type == MessageType.RENAME:
+        new_name = msg.data["name"]
+        old_name = client.name or client.client_id
+
+        client.name = new_name
+
+        out = Message(MessageType.SYSTEM, {"text" : f"{old_name} renamed to {new_name}"})
+        broadcast(out)
+
 
 def service_client(key, mask): # mini dispatcher
     client = key.data
