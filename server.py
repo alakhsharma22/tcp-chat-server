@@ -14,6 +14,7 @@ selector = selectors.DefaultSelector()
 clients = {} # client_socket -> client (ClientState obj)
 history = []
 
+active_names = set()
 
 def broadcast(msg: Message):
     data = encode_msg(msg)
@@ -53,6 +54,9 @@ def disconnect_client(client):
 
     name = client.name or client.client_id
 
+    if client.name:
+        active_names.discard(client.name)
+
     print(f"{name} disconnected")
     out = Message(MessageType.SYSTEM, {"text":f"{name} left the chat"})
     broadcast(out)
@@ -60,6 +64,7 @@ def disconnect_client(client):
 def handle_msg(client, msg):
     if msg.type == MessageType.SET_NAME:
         client.name = msg.data["name"]
+        active_names.add(client.name)
     
     elif msg.type == MessageType.CHAT:
         text = msg.data["text"]
@@ -73,6 +78,14 @@ def handle_msg(client, msg):
     elif msg.type == MessageType.RENAME:
         new_name = msg.data["name"]
         old_name = client.name or client.client_id
+
+        if new_name in active_names:
+            out = Message(MessageType.ERROR, {"text" : "Name already exists"})
+            queue_msg(selector, client, encode_msg(out))
+            return
+
+        active_names.discard(old_name)
+        active_names.add(new_name)
 
         client.name = new_name
 
