@@ -208,7 +208,7 @@ Message(
     }
 )
 ```
-`RENAME` is reserved for future support for changing a user's name after connecting.
+`RENAME` is also implemented.
 
 ---
 
@@ -316,6 +316,9 @@ Added user-defined display names
 - Chat messages use display names
 - Disconnect notifications use display names
 ```
+
+V2.4
+Added Rename functionality
 
 ## Current Architecture
 
